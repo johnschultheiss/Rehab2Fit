@@ -6,37 +6,44 @@ import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.MotionEvent;
 import android.view.View;
+import android.webkit.URLUtil;
+import android.widget.TextView;
+import android.widget.VideoView;
 
 import com.r2f.rehab2fit.ui.login.LoginActivity;
 
-/**
- * An example full-screen activity that shows and hides the system UI (i.e.
- * status bar and navigation/system bar) with user interaction.
- */
+
 public class FullscreenActivity extends AppCompatActivity {
 
-    // Constructors
-
-    // Public methods
-    public boolean performClick() {
-        logout();
-        return true;
-    }
-
-    // Protected methods
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_fullscreen);
 
         mVisible = true;
+
+        // Find the required assets
+        mVideoView = findViewById(R.id.videoView);
         mControlsView = findViewById(R.id.fullscreen_content_controls);
         mContentView = findViewById(R.id.fullscreen_content);
+        mCounterView = findViewById(R.id.textView);
+
+        // Init for text overlay with counter
+        mUpdateCounter = new Handler();
+        counterRunnable = new Runnable() {
+            @Override
+            public void run() {
+                mCounter += 1;
+                mCounterView.setText(Integer.toString(mCounter));
+                mUpdateCounter.postDelayed(this, 1000);
+            }
+        };
 
         // Set up the user interaction to manually show or hide the system UI.
         mContentView.setOnClickListener(new View.OnClickListener() {
@@ -63,7 +70,33 @@ public class FullscreenActivity extends AppCompatActivity {
         delayedHide(100);
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        initializeVideoPlayer();
+        mUpdateCounter.postDelayed(counterRunnable, 1000);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+
+        releaseVideoPlayer();
+        mUpdateCounter.removeCallbacks(counterRunnable);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            mVideoView.pause();
+        }
+    }
+
     // Private methods
+
     private final Runnable mHidePart2Runnable = new Runnable() {
         @SuppressLint("InlinedApi")
         @Override
@@ -90,6 +123,28 @@ public class FullscreenActivity extends AppCompatActivity {
         }
     };
 
+    // Video playback support
+    private Uri getMedia(String mediaName) {
+        if (URLUtil.isValidUrl(mediaName)) {
+            // media name is an external URL
+            return Uri.parse(mediaName);
+        } else { // media name is a raw resource embedded in the app
+            return Uri.parse("android.resource://" + getPackageName() +
+                    "/raw/" + mediaName);
+        }
+    }
+    private void initializeVideoPlayer() {
+        Uri videoUri = getMedia(VIDEO_SAMPLE);
+        mVideoView.setVideoURI(videoUri);
+        mVideoView.start();
+
+    }
+
+    private void releaseVideoPlayer() {
+        mVideoView.stopPlayback();
+    }
+
+    // Account management
     private void logout(){
         Intent intent = new Intent(this, LoginActivity.class);
         startActivity(intent);
@@ -111,7 +166,7 @@ public class FullscreenActivity extends AppCompatActivity {
                     }
                     break;
                 case MotionEvent.ACTION_UP:
-                    performClick();
+                    logout();
                     break;
                 default:
                     break;
@@ -169,7 +224,14 @@ public class FullscreenActivity extends AppCompatActivity {
     private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
     private static final int UI_ANIMATION_DELAY = 300;
     private final Handler mHideHandler = new Handler();
+    private TextView mCounterView;
     private View mContentView;
     private View mControlsView;
     private boolean mVisible;
+    private static final String VIDEO_SAMPLE = "biking";
+    private VideoView mVideoView;
+    private int mCounter = 100;
+    private Runnable counterRunnable;
+
+    private Handler mUpdateCounter;
 }
